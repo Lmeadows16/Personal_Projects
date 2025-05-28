@@ -1,3 +1,8 @@
+# Written by: Leyton Meadows
+# May 27th, 2025
+# This program will compress a file then encrypt it using AES-256. 
+# The password protected .zip file is then emailed using the GMail API
+
 import os
 import base64
 import subprocess
@@ -75,7 +80,7 @@ def send_email(service, message):
     
 # === Configuration ===
 sender = 'leytonmeadows16@gmail.com'
-recipient = 'leyton.meadows@marquette.edu'
+recipient = 'jhmead14@gmail.com'
 subject = 'Encrypted File'
 body = (
     'Hi,\n\n'
