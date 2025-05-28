@@ -12,7 +12,7 @@ venv/
 .vscode/
 
 # Credentials or token files
-.json
+*.json
 *.key
 *.pem
 
