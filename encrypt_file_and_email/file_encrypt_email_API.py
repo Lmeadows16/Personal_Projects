@@ -55,10 +55,6 @@ def create_email(sender, to, subject, body, attachment):
     encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     return {'raw': encoded}
 
-# def send_email(service, message):
-#     result = service.users().messages().send(userId='me', body=message).execute()
-#     print(f"Email sent! ID: {result['id']}")
-
 def send_email(service, message):
     try:
         result = service.users().messages().send(userId='me', body=message).execute()
