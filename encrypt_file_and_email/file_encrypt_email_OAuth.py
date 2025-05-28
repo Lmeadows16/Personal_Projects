@@ -79,7 +79,8 @@ recipient = 'leyton.meadows@marquette.edu'
 subject = 'Encrypted File'
 body = (
     'Hi,\n\n'
-    'This is a test of the API version of file_encrypt_email.'
+    'This is a test of the API version of file_encrypt_email.\n'
+    'The password is \'hello_world\'\n'
     '- Leyton'
 )
 
