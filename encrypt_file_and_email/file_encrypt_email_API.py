@@ -27,17 +27,17 @@ def zip_with_password(output_zip, files, password):
 def authenticate_gmail():
     # Load credentials or prompt user to log in
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if os.path.exists('encrypt_file_and_email/token.json'):
+        creds = Credentials.from_authorized_user_file('encrypt_file_and_email/token.json', SCOPES)
         
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             # Launch browser for for user to log into Gmail
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file('encrypt_file_and_email/credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
+        with open('encrypt_file_and_email/token.json', 'w') as token:
             token.write(creds.to_json())
     
     return build('gmail', 'v1', credentials=creds)
@@ -87,7 +87,7 @@ body = (
     '- Leyton'
 )
 
-files_to_send = ["Hello.txt"]
+files_to_send = ["encrypt_file_and_email/Hello.txt"]
 zip_name = 'protected.zip'
 zip_password = 'hello_world'
 
