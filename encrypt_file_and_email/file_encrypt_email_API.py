@@ -75,7 +75,7 @@ def send_email(service, message):
     
 # === Configuration ===
 sender = 'leytonmeadows16@gmail.com'
-recipient = 'leyton.meadows@marquette.edu'
+recipient = 'spencer.christensen@marquette.edu'
 subject = 'Encrypted File'
 body = (
     'Hi,\n\n'
