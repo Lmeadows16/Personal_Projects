@@ -1,0 +1,17 @@
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: mypassword123
+Login Successful!
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e

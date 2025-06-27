@@ -1,0 +1,27 @@
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: bob
+Enter new password: !@#$%^&*()_+{}|:"<>?[];',./`~
+User registered successfully.
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: bob
+Password: !@#$%^&*()_+{}|:"<>?[];',./`~
+Login Successful!
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e

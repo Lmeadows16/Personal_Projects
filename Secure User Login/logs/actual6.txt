@@ -1,0 +1,17 @@
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: badoldpass
+Incorrect password.
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e

@@ -1,0 +1,18 @@
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: mypassword123
+New password: newsecure456
+Password changed successfully.
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e

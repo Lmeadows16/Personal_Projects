@@ -1,0 +1,26 @@
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: wrong
+Incorrect password. Attempts: 1/5
+Password: wrong
+Incorrect password. Attempts: 2/5
+Password: wrong
+Incorrect password. Attempts: 3/5
+Password: wrong
+Incorrect password. Attempts: 4/5
+Password: wrong
+Incorrect password. Attempts: 5/5
+Too many failed attempts. Try again in 5 seconds...Too many failed attempts. Try again in 4 seconds...Too many failed attempts. Try again in 3 seconds...Too many failed attempts. Try again in 2 seconds...Too many failed attempts. Try again in 1 seconds...
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e

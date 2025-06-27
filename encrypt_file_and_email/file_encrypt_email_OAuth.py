@@ -3,6 +3,7 @@
 # This program will compress a file then encrypt it using AES-256. 
 # The password protected .zip file is then emailed using the GMail API
 
+import csv
 import os
 import base64
 import subprocess
@@ -14,15 +15,17 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# Gmail API scope for sening email
+# Gmail API scope for sending email
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def zip_with_password(output_zip, files, password):
     # Encrypt files into a password protected zip using AES-256
+    '''
     for file in files:
         if not os.path.isfile(file):
             raise FileNotFoundError('File not found')
-            
+    '''
+    
     file_list = " ".join(f'"{file}"' for file in files)
     command = f'7z a -tzip -p"{password}" -mem=AES256 "{output_zip}" {file_list}'
     result = subprocess.run(command, shell=True)
@@ -78,34 +81,45 @@ def send_email(service, message):
         print("Unexpected error:", e)
 
     
-# === Configuration ===
-sender = 'leytonmeadows16@gmail.com'
-recipient = 'jhmead14@gmail.com'
-subject = 'Encrypted File'
-body = (
-    'Hi,\n\n'
-    'This is a test of the OAuth version of file_encrypt_email.\n'
-    'The password is \'hello_world\'\n'
-    '- Leyton'
-)
-
-files_to_send = ["encrypt_file_and_email/Hello.txt"]
-zip_name = 'protected.zip'
-zip_password = 'hello_world'
-
-# Main Workflow
-
-zip_with_password(zip_name, files_to_send, zip_password)
-zip_size = os.path.getsize(zip_name)
-print(f"\nZip size: {zip_size / 1024:.2f} KB")
-gmail_service = authenticate_gmail()
-print(f"Service: {gmail_service}")
-email_message = create_email(sender, recipient, subject, body, zip_name)
-print(f"Sending to: {recipient}")
-print(f'Attachment: {zip_name}')
-print(f'Password: {zip_password}')
-# print(f'\nBody: {email_message}')
-try:
-    send_email(gmail_service, email_message)
-except Exception as e:
-    print(f'Failed to send email: {e}')
+def main():
+    # === Configuration ===
+    sender = 'leytonmeadows16@gmail.com'
+    subject = 'Encrypted File'
+    
+    gmail_service = authenticate_gmail()
+    
+    with open('encrypt_file_and_email/recipients.csv', newline='') as csvfile:
+        body = (
+        'Hi {name},\n\n'
+        'This is a test of the OAuth version of file_encrypt_email_OAuth.\n'
+        'The password is: {password}\n'
+        '- Leyton'
+        )
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            name = row['name']
+            email = row['email']
+            filename = row['filename']
+            password = row['password']
+            
+            if not os.path.exists(filename):
+                print(f"Skipping {name}: File not found - {filename}")
+                continue
+            
+            zip_name = f"{os.path.splitext(filename)[0]}_protected.zip"
+            zip_with_password(zip_name, [filename], password)
+            
+            zip_size = os.path.getsize(zip_name)
+            print(f"\nZip size: {zip_size / 1024:.2f} KB")
+            email_message = create_email(sender, email, subject, body, zip_name)
+            print(f"Sending to: {email}")
+            print(f'Attachment: {zip_name}')
+            print(f'Password: {password}')
+            
+            try:
+                send_email(gmail_service, email_message)
+            except Exception as e:
+                print(f'Failed to send email: {e}')    
+        
+if __name__ == "__main__":
+    main()

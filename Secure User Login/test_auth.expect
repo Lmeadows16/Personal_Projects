@@ -1,0 +1,54 @@
+#!/usr/bin/expect -f
+set timeout 10
+log_user 1  ;# Set to 0 if you want to silence terminal output
+
+# Function to run a test case and log the output
+proc run_test {cmds outputfile} {
+    spawn ./userauth1
+    log_file -noappend $outputfile
+
+    foreach cmd $cmds {
+        expect {
+            -re ".*(Enter new username|Username|username).*: *$" { send "$cmd\r" }
+            -re ".*(Enter new password|Password|password|Old Password|New password).*: *$" { send "$cmd\r" }
+            -re ".*> *$" { send "$cmd\r" }
+            timeout {
+                puts "Timeout while waiting to send: '$cmd'"
+                log_file
+                exit 1
+            }
+        }
+    }
+
+    expect eof
+    log_file
+}
+
+# ------------------------
+# Test 1: Register new user
+puts "Running Test 1"
+run_test {"r" "alice" "mypassword123" "e"} "logs/actual1.txt"
+
+# Test 2: Try to re-register same user
+puts "Running Test 2"
+run_test {"r" "alice" "e"} "logs/actual2.txt"
+
+# Test 3: Login with correct password
+puts "Running Test 3"
+run_test {"l" "alice" "mypassword123" "e"} "logs/actual3.txt"
+
+# Test 4: Login with wrong password 5 times (lockout)
+puts "Running Test 4"
+run_test {"l" "alice" "wrong" "wrong" "wrong" "wrong" "wrong" "e"} "logs/actual4.txt"
+
+# Test 5: Change password (correct old)
+puts "Running Test 5"
+run_test {"c" "alice" "mypassword123" "newsecure456" "e"} "logs/actual5.txt"
+
+# Test 6: Change password with wrong old password
+puts "Running Test 6"
+run_test {"c" "alice" "badoldpass" "e"} "logs/actual6.txt"
+
+# Test 7: Register/login with special chars in password
+puts "Running Test 10"
+run_test {"r" "bob" "!@#\$%^&*()_+{}|:\"<>?[];',./\`~" "l" "bob" "!@#\$%^&*()_+{}|:\"<>?[];',./\`~" "e"} "logs/actual7.txt"

@@ -1,0 +1,290 @@
+Test 1: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: alice
+Enter new password: mypassword123
+User registered successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: alice
+Enter new password: mypassword123
+User registered successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 2: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: alice
+Username already exists.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: alice
+Username already exists.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 3: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: mypassword123
+Login Successful!
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: mypassword123
+Login Successful!
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 4: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: wrong
+Incorrect password. Attempts: 1/5
+Password: wrong
+Incorrect password. Attempts: 2/5
+Password: wrong
+Incorrect password. Attempts: 3/5
+Password: wrong
+Incorrect password. Attempts: 4/5
+Password: wrong
+Incorrect password. Attempts: 5/5
+Too many failed attempts. Try again in 5 seconds...Too many failed attempts. Try again in 4 seconds...Too many failed attempts. Try again in 3 seconds...Too many failed attempts. Try again in 2 seconds...Too many failed attempts. Try again in 1 seconds...
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: alice
+Password: wrong
+Incorrect password. Attempts: 1/5
+Password: wrong
+Incorrect password. Attempts: 2/5
+Password: wrong
+Incorrect password. Attempts: 3/5
+Password: wrong
+Incorrect password. Attempts: 4/5
+Password: wrong
+Incorrect password. Attempts: 5/5
+Too many failed attempts. Try again in 5 seconds...Too many failed attempts. Try again in 4 seconds...Too many failed attempts. Try again in 3 seconds...Too many failed attempts. Try again in 2 seconds...Too many failed attempts. Try again in 1 seconds...
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 5: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: mypassword123
+New password: newsecure456
+Password changed successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: mypassword123
+New password: newsecure456
+Password changed successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 6: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: badoldpass
+Incorrect password.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> c
+Username: alice
+Old Password: badoldpass
+Incorrect password.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+Test 7: PASSED
+--- Expected (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: bob
+Enter new password: !@#$%^&*()_+{}|:"<>?[];',./`~
+User registered successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: bob
+Password: !@#$%^&*()_+{}|:"<>?[];',./`~
+Login Successful!
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+--- Actual (flattened):
+
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> r
+Enter new username: bob
+Enter new password: !@#$%^&*()_+{}|:"<>?[];',./`~
+User registered successfully.
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> l
+Username: bob
+Password: !@#$%^&*()_+{}|:"<>?[];',./`~
+Login Successful!
+[R]egister new
+[L]ogin
+[C]hange Password
+[V]iew USers (PlainText)
+[E]xit
+> e
+----------------------------------------
+
+Summary: 7 passed, 0 failed.
