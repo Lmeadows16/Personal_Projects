@@ -14,6 +14,13 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from pathlib import Path
+
+# Build accurate file paths
+SCRIPT_DIR = Path(__file__).resolve().parent
+CREDENTIALS_PATH = SCRIPT_DIR / "credentials.json"
+TOKEN_PATH = SCRIPT_DIR / "token.json"
+RECIPIENTS_CSV = SCRIPT_DIR / "recipients.csv"
 
 # Gmail API scope for sending email
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
@@ -27,7 +34,7 @@ def zip_with_password(output_zip, files, password):
     '''
     
     file_list = " ".join(f'"{file}"' for file in files)
-    command = f'7z a -tzip -p"{password}" -mem=AES256 "{output_zip}" {file_list}'
+    command = f'7zz a -tzip -p"{password}" -mem=AES256 "{output_zip}" {file_list}'
     result = subprocess.run(command, shell=True)
     if result.returncode != 0:
         raise RuntimeError("Failed to create encrypted zip file")
@@ -35,19 +42,25 @@ def zip_with_password(output_zip, files, password):
 def authenticate_gmail():
     # Load credentials or prompt user to log in
     creds = None
-    if os.path.exists('encrypt_file_and_email/token.json'):
-        creds = Credentials.from_authorized_user_file('encrypt_file_and_email/token.json', SCOPES)
+
+    if TOKEN_PATH.exists():
+        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
         
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            if not CREDENTIALS_PATH.exists():
+                raise FileNotFoundError(
+                    f"Missing OAuth client file: {CREDENTIALS_PATH}\n"
+                    "Download it from Google Cloud Console (OAuth 2.0 Client IDs, Desktop App) "
+                    "and save it as 'credentials.json' next to this script."
+                )
             # Launch browser for for user to log into Gmail
-            flow = InstalledAppFlow.from_client_secrets_file('encrypt_file_and_email/credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('encrypt_file_and_email/token.json', 'w') as token:
-            token.write(creds.to_json())
-    
+            flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
+            creds = flow.run_local_server(port=0) 
+        TOKEN_PATH.write_text(creds.to_json())
+
     return build('gmail', 'v1', credentials=creds)
 
 def create_email(sender, to, subject, body, attachment):
@@ -87,14 +100,11 @@ def main():
     subject = 'Encrypted File'
     
     gmail_service = authenticate_gmail()
+
+    if not RECIPIENTS_CSV.exists():
+        raise FileNotFound(f"Recipients CSV not found: {RECIPIENTS_CSV}")
     
-    with open('encrypt_file_and_email/recipients.csv', newline='') as csvfile:
-        body = (
-        'Hi {name},\n\n'
-        'This is a test of the OAuth version of file_encrypt_email_OAuth.\n'
-        'The password is: {password}\n'
-        '- Leyton'
-        )
+    with open(str(RECIPIENTS_CSV), newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             name = row['name']
@@ -106,6 +116,13 @@ def main():
                 print(f"Skipping {name}: File not found - {filename}")
                 continue
             
+            body = (
+                f'Hi {name},\n\n'
+                'This is a test of the OAuth version of file_encrypt_email_OAuth.\n'
+                f'The password is: {password}\n'
+                '- Leyton'
+                )
+
             zip_name = f"{os.path.splitext(filename)[0]}_protected.zip"
             zip_with_password(zip_name, [filename], password)
             
