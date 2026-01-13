@@ -237,19 +237,6 @@ export default function Sidebar() {
         </Link>
 
         <Link
-          href="/settings"
-          style={{
-            padding: "12px 14px",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-            textDecoration: "none",
-            fontSize: 16,
-          }}
-        >
-          Settings
-        </Link>
-
-        <Link
           href="/archived"
           style={{
             padding: "12px 14px",
@@ -260,6 +247,19 @@ export default function Sidebar() {
           }}
         >
           Archived
+        </Link>
+
+        <Link
+          href="/settings"
+          style={{
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid var(--border)",
+            textDecoration: "none",
+            fontSize: 16,
+          }}
+        >
+          Settings
         </Link>
 
         <button
