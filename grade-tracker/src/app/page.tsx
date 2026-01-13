@@ -107,9 +107,20 @@ export default function Dashboard() {
   }, [authReady]);
 
   const visibleCourses = useMemo(() => {
-    if (selectedTerm === "All") return courses;
-    return courses.filter((c) => (c.term ?? "—") === selectedTerm);
-  }, [courses, selectedTerm]);
+    const archivedNames = new Set(
+      terms.filter((term) => term.archived).map((term) => term.name),
+    );
+
+    if (selectedTerm === "All") {
+      return courses.filter((course) => {
+        const termName = course.term ?? "—";
+        if (termName === "—") return true;
+        return !archivedNames.has(termName);
+      });
+    }
+
+    return courses.filter((course) => (course.term ?? "—") === selectedTerm);
+  }, [courses, selectedTerm, terms]);
 
   // Precompute grades per course
   const gradesByCourse = useMemo(() => {
@@ -202,25 +213,46 @@ export default function Dashboard() {
       return;
     }
 
-    const termRow = terms.find(
-      (term) => term.name === selectedTerm && !term.archived,
-    );
+    const termRow = terms.find((term) => term.name === selectedTerm);
 
     if (!termRow) {
-      alert("That term is not available to archive.");
-      return;
-    }
+      if (!confirm(`Archive term "${selectedTerm}"?`)) return;
 
-    if (!confirm(`Archive term "${termRow.name}"?`)) return;
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+      if (!user) {
+        alert("Please log in first.");
+        return;
+      }
 
-    const { error } = await supabase
-      .from("terms")
-      .update({ archived: true })
-      .eq("id", termRow.id);
+      const { error } = await supabase.from("terms").insert({
+        user_id: user.id,
+        name: selectedTerm,
+        position: terms.length,
+        archived: true,
+      });
 
-    if (error) {
-      alert(error.message);
-      return;
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    } else {
+      if (termRow.archived) {
+        alert("That term is not available to archive.");
+        return;
+      }
+
+      if (!confirm(`Archive term "${termRow.name}"?`)) return;
+
+      const { error } = await supabase
+        .from("terms")
+        .update({ archived: true })
+        .eq("id", termRow.id);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
     }
 
     localStorage.setItem("selectedTerm", "All");

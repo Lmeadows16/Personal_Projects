@@ -405,6 +405,43 @@ export default function CoursePage() {
     else refresh();
   }
 
+  async function deleteCourse() {
+    if (!courseId) return;
+    if (!confirm("Delete this class and all its data?")) return;
+
+    const { error: assignmentError } = await supabase
+      .from("assignments")
+      .delete()
+      .eq("course_id", courseId);
+
+    if (assignmentError) {
+      alert(assignmentError.message);
+      return;
+    }
+
+    const { error: categoryError } = await supabase
+      .from("categories")
+      .delete()
+      .eq("course_id", courseId);
+
+    if (categoryError) {
+      alert(categoryError.message);
+      return;
+    }
+
+    const { error: courseError } = await supabase
+      .from("courses")
+      .delete()
+      .eq("id", courseId);
+
+    if (courseError) {
+      alert(courseError.message);
+      return;
+    }
+
+    window.location.href = "/";
+  }
+
   // Drag/persist categories ordering
   async function persistCategoryOrder(next: Category[]) {
     // write position = index (only if column exists)
@@ -664,6 +701,22 @@ export default function CoursePage() {
         {orderedAssignments.length === 0 && (
           <div style={{ padding: 10, opacity: 0.7 }}>No assignments yet.</div>
         )}
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <button
+          onClick={deleteCourse}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(220, 38, 38, 0.6)",
+            color: "#dc2626",
+            background: "transparent",
+            fontWeight: 600,
+          }}
+        >
+          Delete class
+        </button>
       </div>
 
       {/* Category modal */}
