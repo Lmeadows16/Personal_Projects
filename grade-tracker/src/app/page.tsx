@@ -13,7 +13,6 @@ import Modal from "@/components/Modal";
 
 type Course = { id: string; name: string; term: string | null };
 type Term = { id: string; name: string; archived: boolean };
-type Profile = { first_name: string | null };
 type Category = GradeCategory & { course_id: string };
 type Assignment = GradeAssignment & { course_id: string };
 
@@ -34,7 +33,7 @@ export default function Dashboard() {
   const [terms, setTerms] = useState<Term[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [firstName, setFirstName] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
 
   // Sidebar controls term via localStorage
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
@@ -89,19 +88,11 @@ export default function Dashboard() {
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user;
     if (user) {
-      const metadataFirstName =
-        typeof user.user_metadata?.first_name === "string"
-          ? user.user_metadata.first_name
+      const metadataFullName =
+        typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
           : null;
-      setFirstName(metadataFirstName);
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("first_name")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const profileFirstName = (profileData as Profile | null)?.first_name ?? null;
-      if (profileFirstName) setFirstName(profileFirstName);
+      setFullName(metadataFullName);
     }
 
     setCourses((c.data ?? []) as Course[]);
@@ -243,7 +234,7 @@ export default function Dashboard() {
   return (
     <main style={{ maxWidth: 1000, margin: "40px auto", padding: 16 }}>
       <h1 style={{ marginTop: 0 }}>
-        {firstName ? `Hello, ${firstName}` : "Dashboard"}
+        {fullName ? `Welcome, ${fullName}` : "Welcome"}
       </h1>
 
       <div style={{ opacity: 0.7, marginBottom: 14 }}>

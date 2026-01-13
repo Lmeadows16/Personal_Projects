@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -30,10 +30,9 @@ export default function LoginPage() {
       const trimmedPassword = password.trim();
 
       if (mode === "signup") {
-        const trimmedFirstName = firstName.trim();
-        const trimmedLastName = lastName.trim();
-        if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !trimmedPassword) {
-          setMsg("First name, last name, email, and password are required.");
+        const trimmedFullName = fullName.trim();
+        if (!trimmedFullName || !trimmedEmail || !trimmedPassword) {
+          setMsg("Full name, email, and password are required.");
           return;
         }
 
@@ -42,34 +41,21 @@ export default function LoginPage() {
             ? `${window.location.origin}/login`
             : undefined;
 
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password: trimmedPassword,
           options: {
             emailRedirectTo: redirectTo,
             data: {
-              first_name: trimmedFirstName,
-              last_name: trimmedLastName,
+              full_name: trimmedFullName,
             },
           },
         });
         if (error) throw error;
 
-        if (data.user?.id) {
-          const { error: profileError } = await supabase.from("profiles").upsert({
-            user_id: data.user.id,
-            first_name: trimmedFirstName,
-            last_name: trimmedLastName,
-          });
-          if (profileError) {
-            console.warn("Profile save failed:", profileError.message);
-          }
-        }
-
         setMsg("Account created. Check your email to confirm before logging in.");
         setMode("login");
-        setFirstName("");
-        setLastName("");
+        setFullName("");
         setPassword("");
         setEmail("");
       } else {
@@ -98,6 +84,7 @@ export default function LoginPage() {
     }
   }
 
+
   return (
       <main style={{ maxWidth: 520, margin: "80px auto", padding: 16 }}>
         <h1 style={{ marginTop: 0, fontSize: 36 }}>See My Grades</h1>
@@ -122,34 +109,19 @@ export default function LoginPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "signup" ? (
-            <>
-              <input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="First name"
-                style={{
-                  padding: 14,
-                  fontSize: 16,
-                  borderRadius: 12,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "inherit",
-                }}
-              />
-              <input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Last name"
-                style={{
-                  padding: 14,
-                  fontSize: 16,
-                  borderRadius: 12,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "inherit",
-                }}
-              />
-            </>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Full name"
+              style={{
+                padding: 14,
+                fontSize: 16,
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "transparent",
+                color: "inherit",
+              }}
+            />
           ) : null}
           <input
             value={email}
@@ -178,6 +150,21 @@ export default function LoginPage() {
               color: "inherit",
             }}
           />
+
+          {mode === "login" ? (
+            <Link
+              href="/forgot-password"
+              style={{
+                padding: "4px 0",
+                fontSize: 14,
+                textDecoration: "underline",
+                alignSelf: "flex-start",
+                opacity: 0.9,
+              }}
+            >
+              Forgot password?
+            </Link>
+          ) : null}
 
           <button
             onClick={submit}
