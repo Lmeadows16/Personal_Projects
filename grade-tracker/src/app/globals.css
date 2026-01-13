@@ -1,26 +1,149 @@
-@import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #111111;
+  --muted: rgba(0, 0, 0, 0.7);
+  --border: #dddddd;
+
+  /* Table header colors */
+  --table-head-bg: #fafafa;
+  --table-head-fg: #111111;
+
+  /* Sidebar */
+  --sidebar-bg: #ffffff;
+  --sidebar-fg: #111111;
+  --sidebar-border: #dddddd;
+
+  /* Modal */
+  --modal-bg: #ffffff;
+  --modal-fg: #111111;
+  --backdrop: rgba(0, 0, 0, 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html.dark {
+  color-scheme: dark;
+  --bg: #0b0b0f;
+  --fg: #f2f2f3;
+  --muted: rgba(255, 255, 255, 0.7);
+  --border: rgba(255, 255, 255, 0.14);
+
+  --table-head-bg: rgba(255, 255, 255, 0.08);
+  --table-head-fg: #f2f2f3;
+
+  --sidebar-bg: #0b0b0f;
+  --sidebar-fg: #f2f2f3;
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+
+  --modal-bg: #0f0f16;
+  --modal-fg: #f2f2f3;
+  --backdrop: rgba(0, 0, 0, 0.55);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.content {
+  flex: 1;
+  padding: 0;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 9999;
+}
+
+.modal {
+  width: min(560px, 100%);
+  background: var(--modal-bg);
+  color: var(--modal-fg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal h2 {
+  margin: 0 0 10px 0;
+}
+
+.modal .row {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.modal label {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+.modal input,
+.modal select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.modal .actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+button {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+a {
+  text-decoration: none;
 }
