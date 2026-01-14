@@ -58,16 +58,53 @@ export default function ArchivedPage() {
       return;
     }
 
-    const { error } = await supabase
+    const courseIds = courses
+      .filter((course) => (course.term ?? "—") === term.name)
+      .map((course) => course.id);
+
+    if (courseIds.length > 0) {
+      const { error: assignmentError } = await supabase
+        .from("assignments")
+        .delete()
+        .in("course_id", courseIds);
+
+      if (assignmentError) {
+        alert(assignmentError.message);
+        return;
+      }
+
+      const { error: categoryError } = await supabase
+        .from("categories")
+        .delete()
+        .in("course_id", courseIds);
+
+      if (categoryError) {
+        alert(categoryError.message);
+        return;
+      }
+
+      const { error: courseError } = await supabase
+        .from("courses")
+        .delete()
+        .in("id", courseIds);
+
+      if (courseError) {
+        alert(courseError.message);
+        return;
+      }
+    }
+
+    const { error: termError } = await supabase
       .from("terms")
       .delete()
       .eq("id", term.id);
-    if (error) {
-      alert(error.message);
+    if (termError) {
+      alert(termError.message);
       return;
     }
 
     await loadArchived();
+    window.location.reload();
   }
 
   return (
