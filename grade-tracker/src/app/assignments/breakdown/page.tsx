@@ -15,6 +15,11 @@ type Assignment = {
   due_time: string | null;
 };
 
+type AssignmentRow = {
+  assignment: Assignment;
+  course: Course | null;
+};
+
 function normalizeDateInput(value: string | null) {
   if (!value) return "";
   return value.slice(0, 10);
@@ -33,6 +38,12 @@ function dateFromInput(value: string | null) {
   return date;
 }
 
+function startOfDay(date: Date) {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
 function formatDueDate(value: string | null, timeValue: string | null) {
   const date = dateFromInput(value);
   if (!date) return "No due date";
@@ -49,12 +60,6 @@ function formatDueDate(value: string | null, timeValue: string | null) {
   })}`;
 }
 
-function isDueToday(value: string | null) {
-  const normalized = normalizeDateInput(value);
-  if (!normalized) return false;
-  const today = normalizeDateInput(new Date().toISOString());
-  return normalized === today;
-}
 
 function statusBadgeStyle(status: Assignment["status"]) {
   const base: React.CSSProperties = {
@@ -77,6 +82,62 @@ function statusBadgeStyle(status: Assignment["status"]) {
     default:
       return { ...base, background: "rgba(255, 255, 255, 0.18)" };
   }
+}
+
+function toAssignmentRows(
+  assignments: Assignment[],
+  courses: Course[],
+): AssignmentRow[] {
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  return assignments.map((assignment) => ({
+    assignment,
+    course: courseMap.get(assignment.course_id) ?? null,
+  }));
+}
+
+function sortRows(rows: AssignmentRow[]) {
+  return [...rows].sort((a, b) => {
+    const aTime = dateFromInput(a.assignment.due_date)?.getTime() ?? Infinity;
+    const bTime = dateFromInput(b.assignment.due_date)?.getTime() ?? Infinity;
+    return aTime - bTime;
+  });
+}
+
+function sortNoDateRows(rows: AssignmentRow[]) {
+  return [...rows].sort((a, b) => {
+    const courseNameA = a.course?.name ?? "";
+    const courseNameB = b.course?.name ?? "";
+    const courseSort = courseNameA.localeCompare(courseNameB);
+    if (courseSort !== 0) return courseSort;
+    return a.assignment.title.localeCompare(b.assignment.title);
+  });
+}
+
+function isOverdue(
+  assignment: Assignment,
+  dueDate: Date | null,
+  today: Date,
+) {
+  if (!dueDate) return false;
+  if (assignment.status === "submitted" || assignment.status === "graded") {
+    return false;
+  }
+  return dueDate.getTime() < today.getTime();
+}
+
+function isDueTodayDate(dueDate: Date | null, today: Date) {
+  if (!dueDate) return false;
+  return dueDate.getTime() === today.getTime();
+}
+
+function isUpcoming(dueDate: Date | null, today: Date) {
+  if (!dueDate) return false;
+  const weekFromToday = new Date(today);
+  weekFromToday.setDate(today.getDate() + 7);
+  return (
+    dueDate.getTime() > today.getTime() &&
+    dueDate.getTime() <= weekFromToday.getTime()
+  );
 }
 
 export default function AssignmentsBreakdown() {
@@ -151,7 +212,7 @@ export default function AssignmentsBreakdown() {
     setFormCourseId(assignment.course_id);
     setFormDueDate(normalizeDateInput(assignment.due_date));
     setFormDueTime(normalizeTimeInput(assignment.due_time));
-    setFormStatus(assignment.status);
+    setFormStatus(assignment.status === "missing" ? "planned" : assignment.status);
     setFormError(null);
     setIsDrawerOpen(true);
   }
@@ -208,36 +269,62 @@ export default function AssignmentsBreakdown() {
 
   const rows = useMemo(() => {
     const visibleCourseIds = new Set(visibleCourses.map((course) => course.id));
-    return assignments
-      .filter((assignment) => visibleCourseIds.has(assignment.course_id))
-      .map((assignment) => {
-        const course =
-          visibleCourses.find((entry) => entry.id === assignment.course_id) ??
-          null;
-        return { assignment, course };
-      })
-      .sort((a, b) => {
-        const aTime =
-          dateFromInput(a.assignment.due_date)?.getTime() ?? Infinity;
-        const bTime =
-          dateFromInput(b.assignment.due_date)?.getTime() ?? Infinity;
-        return aTime - bTime;
-      });
+    const filteredAssignments = assignments.filter(
+      (assignment) =>
+        visibleCourseIds.has(assignment.course_id) &&
+        assignment.status !== "submitted" &&
+        assignment.status !== "graded",
+    );
+    return toAssignmentRows(filteredAssignments, visibleCourses);
   }, [assignments, visibleCourses]);
 
-  const [ungradedRows, gradedRows] = useMemo(() => {
-    const graded: typeof rows = [];
-    const ungraded: typeof rows = [];
+  const todayDate = useMemo(() => startOfDay(new Date()), []);
 
-    rows.forEach((row) => {
-      if (row.assignment.status === "graded") {
-        graded.push(row);
-      } else {
-        ungraded.push(row);
-      }
+  const columnsByCourse = useMemo(() => {
+    return visibleCourses.map((course) => {
+      const courseRows = rows.filter(
+        (row) => row.assignment.course_id === course.id,
+      );
+      const overdue: AssignmentRow[] = [];
+      const todayRows: AssignmentRow[] = [];
+      const week: AssignmentRow[] = [];
+      const noDate: AssignmentRow[] = [];
+
+      courseRows.forEach((row) => {
+        const dueDate = dateFromInput(row.assignment.due_date);
+        if (!dueDate) {
+          noDate.push(row);
+          return;
+        }
+        const normalizedDueDate = startOfDay(dueDate);
+        if (isOverdue(row.assignment, normalizedDueDate, todayDate)) {
+          overdue.push(row);
+          return;
+        }
+        if (isDueTodayDate(normalizedDueDate, todayDate)) {
+          todayRows.push(row);
+          return;
+        }
+        if (isUpcoming(normalizedDueDate, todayDate)) {
+          week.push(row);
+          return;
+        }
+        noDate.push(row);
+      });
+
+      return {
+        course,
+        overdue: sortRows(overdue),
+        today: sortRows(todayRows),
+        week: sortRows(week),
+        noDate: sortNoDateRows(noDate),
+      };
     });
+  }, [rows, todayDate, visibleCourses]);
 
-    return [ungraded, graded];
+  const totalNoDateRows = useMemo(() => {
+    const noDateRows = rows.filter((row) => !row.assignment.due_date);
+    return sortNoDateRows(noDateRows);
   }, [rows]);
 
   const tabBase: React.CSSProperties = {
@@ -291,7 +378,7 @@ export default function AssignmentsBreakdown() {
       >
         <div>
           <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 28 }}>
-            Assignments breakdown
+            Assignments board
           </h1>
           <div style={{ opacity: 0.7, marginTop: 6 }}>
             Showing: <strong>{selectedTerm}</strong>
@@ -492,7 +579,6 @@ export default function AssignmentsBreakdown() {
                   <option value="planned">Planned</option>
                   <option value="submitted">Submitted</option>
                   <option value="graded">Graded</option>
-                  <option value="missing">Missing</option>
                 </select>
               </label>
 
@@ -526,186 +612,185 @@ export default function AssignmentsBreakdown() {
       ) : null}
 
       {selectedTerm !== "All" ? (
-        <div style={{ display: "grid", gap: 20 }}>
-          <section
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                padding: "12px 14px",
-                fontWeight: 700,
-                background: "rgba(15, 23, 42, 0.06)",
-                borderBottom: "1px solid #eee",
-              }}
-            >
-              Ungraded
-            </div>
-            <div
-              style={{
-                display: isMobile ? "none" : "grid",
-                gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
-                gap: 0,
-                fontWeight: 700,
-                padding: 10,
-                background: "var(--table-head-bg)",
-                color: "var(--table-head-fg)",
-              }}
-            >
-              <div>Assignment</div>
-              <div style={{ paddingRight: 12 }}>Course</div>
-              <div style={{ paddingLeft: 30 }}>Due</div>
-              <div>Status</div>
-              <div></div>
-            </div>
+        <div style={{ display: "grid", gap: 24 }}>
+          {visibleCourses.length === 0 ? (
+            <div style={{ opacity: 0.7 }}>No classes in this term yet.</div>
+          ) : null}
 
-            {ungradedRows.map(({ assignment, course }) => {
-              const dueToday = isDueToday(assignment.due_date);
-              return (
-                <div
-                  key={assignment.id}
-                  style={
-                    isMobile
-                      ? {
-                          display: "grid",
-                          gap: 8,
-                          padding: 12,
-                          borderTop: "1px solid #eee",
-                          background: dueToday
-                            ? "rgba(255, 235, 59, 0.18)"
-                            : "transparent",
-                        }
-                      : {
-                          display: "grid",
-                          gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
-                          padding: 10,
-                          borderTop: "1px solid #eee",
-                          alignItems: "center",
-                          background: dueToday
-                            ? "rgba(255, 235, 59, 0.18)"
-                            : "transparent",
-                        }
-                  }
-                >
-                  <div
-                    style={
-                      isMobile
-                        ? {
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 4,
-                          }
-                        : undefined
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? 16 : 14 }}>
-                      {assignment.title}
-                    </div>
-                    {dueToday ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: "#92400e",
-                        }}
-                      >
-                        Due today
-                      </div>
-                    ) : null}
-                  </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { fontSize: 13, opacity: 0.7 }
-                        : { paddingRight: 12 }
-                    }
-                  >
-                    {isMobile ? "Course" : null}
-                    {isMobile ? (
-                      <div style={{ marginTop: 4 }}>
-                        {course ? (
-                          <Link
-                            href={`/course/${course.id}`}
-                            style={{ textDecoration: "none" }}
-                          >
-                            {course.name}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                    ) : course ? (
-                      <Link
-                        href={`/course/${course.id}`}
-                        style={{ textDecoration: "none" }}
-                      >
-                        {course.name}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { fontSize: 13, opacity: 0.7 }
-                        : { paddingLeft: 30 }
-                    }
-                  >
-                    {isMobile ? "Due" : null}
-                    <div style={{ marginTop: isMobile ? 4 : 0 }}>
-                      {formatDueDate(assignment.due_date, assignment.due_time)}
-                    </div>
-                  </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { display: "flex", alignItems: "center", gap: 8 }
-                        : undefined
-                    }
-                  >
-                    {isMobile ? (
-                      <span style={{ fontSize: 13, opacity: 0.7 }}>Status</span>
-                    ) : null}
-                    <span style={statusBadgeStyle(assignment.status)}>
-                      {assignment.status}
-                    </span>
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => openEditDrawer(assignment)}
-                      style={{
-                        borderRadius: 8,
-                        border: "1px solid var(--border)",
-                        padding: isMobile ? "8px 12px" : "4px 10px",
-                        background: "var(--sidebar-bg)",
-                        color: "var(--sidebar-fg)",
-                        cursor: "pointer",
-                        width: isMobile ? "100%" : "auto",
-                      }}
-                    >
-                      Edit
-                    </button>
-                  </div>
+          {columnsByCourse.map(({ course, overdue, today, week }) => (
+            <section
+              key={course.id}
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 16,
+                padding: isMobile ? 12 : 16,
+                background: "rgba(15, 23, 42, 0.01)",
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: isMobile ? 16 : 18 }}>
+                  {course.name}
                 </div>
-              );
-            })}
-
-            {ungradedRows.length === 0 ? (
-              <div style={{ padding: 10, opacity: 0.7 }}>
-                No ungraded assignments.
+                <Link
+                  href={`/course/${course.id}`}
+                  style={{ textDecoration: "none", fontSize: 13, opacity: 0.7 }}
+                >
+                  Open course
+                </Link>
               </div>
-            ) : null}
-          </section>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(3, minmax(0, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {[
+                  { key: "today", label: "Today", rows: today },
+                  { key: "week", label: "This week", rows: week },
+                  { key: "overdue", label: "Overdue", rows: overdue },
+                ].map(({ key, label, rows }) => (
+                  <div
+                    key={key}
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 14,
+                      padding: 12,
+                      background:
+                        key === "overdue"
+                          ? "rgba(254, 226, 226, 0.3)"
+                          : "rgba(255, 255, 255, 0.45)",
+                      minHeight: 120,
+                      display: "grid",
+                      gap: 10,
+                      alignContent: "start",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{label}</div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {rows.length}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {rows.map((row) => {
+                        const dueDate = dateFromInput(row.assignment.due_date);
+                        const normalizedDueDate = dueDate
+                          ? startOfDay(dueDate)
+                          : null;
+                        const overdueStatus = normalizedDueDate
+                          ? isOverdue(row.assignment, normalizedDueDate, todayDate)
+                          : false;
+                        const resolvedStatus = overdueStatus
+                          ? "missing"
+                          : row.assignment.status === "missing"
+                            ? "planned"
+                            : row.assignment.status;
+                        return (
+                          <div
+                            key={row.assignment.id}
+                            style={{
+                              border: "1px solid var(--border)",
+                              borderRadius: 12,
+                              padding: 12,
+                              background: "var(--sidebar-bg)",
+                              display: "grid",
+                              gap: 8,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "space-between",
+                                gap: 8,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: isMobile ? 15 : 14,
+                                }}
+                              >
+                                {row.assignment.title}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openEditDrawer(row.assignment)}
+                                style={{
+                                  borderRadius: 8,
+                                  border: "1px solid var(--border)",
+                                  padding: "4px 8px",
+                              background: "rgba(255, 255, 255, 0.55)",
+
+                                  color: "var(--sidebar-fg)",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Edit
+                              </button>
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.7 }}>
+                              {formatDueDate(
+                                row.assignment.due_date,
+                                row.assignment.due_time,
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <span style={statusBadgeStyle(resolvedStatus)}>
+                                {resolvedStatus}
+                              </span>
+                              {overdueStatus ? (
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: "#b91c1c",
+                                  }}
+                                >
+                                  Past due
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {rows.length === 0 ? (
+                        <div style={{ fontSize: 13, opacity: 0.6 }}>
+                          No assignments.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
 
           <section
             style={{
               border: "1px solid #ddd",
-              borderRadius: 12,
+              borderRadius: 16,
               overflow: "hidden",
             }}
           >
@@ -717,12 +802,12 @@ export default function AssignmentsBreakdown() {
                 borderBottom: "1px solid #eee",
               }}
             >
-              Graded
+              Assignments without due dates
             </div>
             <div
               style={{
                 display: isMobile ? "none" : "grid",
-                gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
+                gridTemplateColumns: "1.4fr 1.1fr 1fr 90px",
                 gap: 0,
                 fontWeight: 700,
                 padding: 10,
@@ -731,14 +816,14 @@ export default function AssignmentsBreakdown() {
               }}
             >
               <div>Assignment</div>
-              <div style={{ paddingRight: 12 }}>Course</div>
-              <div style={{ paddingLeft: 30 }}>Due</div>
+              <div>Course</div>
               <div>Status</div>
               <div></div>
             </div>
 
-            {gradedRows.map(({ assignment, course }) => {
-              const dueToday = isDueToday(assignment.due_date);
+            {totalNoDateRows.map(({ assignment, course }) => {
+              const resolvedStatus =
+                assignment.status === "missing" ? "planned" : assignment.status;
               return (
                 <div
                   key={assignment.id}
@@ -749,105 +834,43 @@ export default function AssignmentsBreakdown() {
                           gap: 8,
                           padding: 12,
                           borderTop: "1px solid #eee",
-                          background: dueToday
-                            ? "rgba(255, 235, 59, 0.18)"
-                            : "transparent",
                         }
                       : {
                           display: "grid",
-                          gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
+                          gridTemplateColumns: "1.4fr 1.1fr 1fr 90px",
                           padding: 10,
                           borderTop: "1px solid #eee",
                           alignItems: "center",
-                          background: dueToday
-                            ? "rgba(255, 235, 59, 0.18)"
-                            : "transparent",
                         }
                   }
                 >
-                  <div
-                    style={
-                      isMobile
-                        ? {
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 4,
-                          }
-                        : undefined
-                    }
-                  >
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? 16 : 14 }}>
-                      {assignment.title}
-                    </div>
-                    {dueToday ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: "#92400e",
-                        }}
-                      >
-                        Due today
-                      </div>
-                    ) : null}
+                  <div style={{ fontWeight: 600, fontSize: isMobile ? 15 : 14 }}>
+                    {assignment.title}
                   </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { fontSize: 13, opacity: 0.7 }
-                        : { paddingRight: 12 }
-                    }
-                  >
+                  <div style={isMobile ? { fontSize: 13, opacity: 0.7 } : {}}>
                     {isMobile ? "Course" : null}
-                    {isMobile ? (
-                      <div style={{ marginTop: 4 }}>
-                        {course ? (
-                          <Link
-                            href={`/course/${course.id}`}
-                            style={{ textDecoration: "none" }}
-                          >
-                            {course.name}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                    ) : course ? (
-                      <Link
-                        href={`/course/${course.id}`}
-                        style={{ textDecoration: "none" }}
-                      >
-                        {course.name}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { fontSize: 13, opacity: 0.7 }
-                        : { paddingLeft: 30 }
-                    }
-                  >
-                    {isMobile ? "Due" : null}
                     <div style={{ marginTop: isMobile ? 4 : 0 }}>
-                      {formatDueDate(assignment.due_date, assignment.due_time)}
+                      {course ? (
+                        <Link
+                          href={`/course/${course.id}`}
+                          style={{ textDecoration: "none" }}
+                        >
+                          {course.name}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
                     </div>
                   </div>
-                  <div
-                    style={
-                      isMobile
-                        ? { display: "flex", alignItems: "center", gap: 8 }
-                        : undefined
-                    }
-                  >
+                  <div>
                     {isMobile ? (
                       <span style={{ fontSize: 13, opacity: 0.7 }}>Status</span>
                     ) : null}
-                    <span style={statusBadgeStyle(assignment.status)}>
-                      {assignment.status}
-                    </span>
+                    <div style={{ marginTop: isMobile ? 4 : 0 }}>
+                      <span style={statusBadgeStyle(resolvedStatus)}>
+                        {resolvedStatus}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <button
@@ -870,9 +893,9 @@ export default function AssignmentsBreakdown() {
               );
             })}
 
-            {gradedRows.length === 0 ? (
+            {totalNoDateRows.length === 0 ? (
               <div style={{ padding: 10, opacity: 0.7 }}>
-                No graded assignments.
+                No assignments without a due date.
               </div>
             ) : null}
           </section>
