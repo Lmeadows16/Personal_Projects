@@ -56,6 +56,7 @@ export default function AssignmentsSummary() {
     loadData();
   }, []);
 
+
   const visibleCourses = useMemo(() => {
     if (selectedTerm === "All") return [];
     return courses.filter((course) => (course.term ?? "—") === selectedTerm);

@@ -262,6 +262,7 @@ export default function AssignmentsBreakdown() {
     loadData();
   }, []);
 
+
   const visibleCourses = useMemo(() => {
     if (selectedTerm === "All") return [];
     return courses.filter((course) => (course.term ?? "—") === selectedTerm);

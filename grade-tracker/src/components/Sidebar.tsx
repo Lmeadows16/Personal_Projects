@@ -97,6 +97,14 @@ export default function Sidebar({ onToggle }: SidebarProps) {
   }, [terms, courses]);
 
   useEffect(() => {
+    if (selectedTerm !== "All") return;
+    const availableTerms = termOptions.filter((term) => term !== "All");
+    if (availableTerms.length === 1) {
+      setSelectedTerm(availableTerms[0]);
+    }
+  }, [selectedTerm, termOptions]);
+
+  useEffect(() => {
     if (selectedTerm === "All") return;
     if (!termOptions.includes(selectedTerm)) {
       setSelectedTerm("All");
