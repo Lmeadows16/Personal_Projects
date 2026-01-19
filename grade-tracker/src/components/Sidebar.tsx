@@ -8,7 +8,12 @@ import Modal from "@/components/Modal";
 type Course = { term: string | null };
 type Term = { id: string; name: string; position: number; archived: boolean };
 
-export default function Sidebar() {
+type SidebarProps = {
+  onToggle?: () => void;
+};
+
+export default function Sidebar({ onToggle }: SidebarProps) {
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
@@ -250,6 +255,19 @@ export default function Sidebar() {
         </Link>
 
         <Link
+          href="/assignments"
+          style={{
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid var(--border)",
+            textDecoration: "none",
+            fontSize: 16,
+          }}
+        >
+          Assignments
+        </Link>
+
+        <Link
           href="/settings"
           style={{
             padding: "12px 14px",
@@ -276,6 +294,16 @@ export default function Sidebar() {
         >
           Logout
         </button>
+
+        {onToggle ? (
+          <button
+            onClick={onToggle}
+            className="sidebar-toggle"
+            style={{ textAlign: "left" }}
+          >
+            Hide menu
+          </button>
+        ) : null}
       </div>
 
       <Modal

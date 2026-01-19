@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { computeWeightedGrade, formatPct } from "@/lib/grades";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Modal from "@/components/Modal";
 import DragList from "@/components/DragList";
@@ -51,7 +51,6 @@ function sumPoints(assignments: Assignment[]) {
 }
 
 function statusBadgeStyle(status: Assignment["status"]) {
-  // subtle color coding, keeps old “plain” look
   const base: React.CSSProperties = {
     display: "inline-block",
     padding: "2px 8px",
@@ -74,24 +73,66 @@ function statusBadgeStyle(status: Assignment["status"]) {
   }
 }
 
+function normalizeDateInput(value: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function dateFromInput(value: string | null) {
+  const normalized = normalizeDateInput(value);
+  if (!normalized) return null;
+  const date = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function formatDueDate(dueDate: string | null) {
+  const date = dateFromInput(dueDate);
+  if (!date) return "No due date";
+  return date.toLocaleDateString();
+}
+
+function isDueToday(dueDate: string | null) {
+  const normalized = normalizeDateInput(dueDate);
+  if (!normalized) return false;
+  const today = normalizeDateInput(new Date().toISOString());
+  return normalized === today;
+}
+
 export default function CoursePage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const courseId = params.id;
 
   const [course, setCourse] = useState<Course | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [as, setAs] = useState<Assignment[]>([]);
   const [session, setSession] = useState<Session | null>(null);
+  const [activeTab, setActiveTab] = useState<"grades" | "assignments">(
+    "grades",
+  );
 
   // Modals
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [asgModalOpen, setAsgModalOpen] = useState(false);
   const [whatIfOpen, setWhatIfOpen] = useState(false);
 
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "assignments") {
+      setActiveTab("assignments");
+    } else if (tab === "grades") {
+      setActiveTab("grades");
+    }
+  }, [searchParams]);
+
   // Category form state
   const [catName, setCatName] = useState("");
   const [catWeight, setCatWeight] = useState("0");
   const [catDrop, setCatDrop] = useState("0");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
 
   // Assignment form state (for add/edit)
   const [editId, setEditId] = useState<string | null>(null);
@@ -100,6 +141,7 @@ export default function CoursePage() {
   const [asgEarned, setAsgEarned] = useState("");
   const [asgPossible, setAsgPossible] = useState("");
   const [asgStatus, setAsgStatus] = useState<Assignment["status"]>("planned");
+  const [asgDueDate, setAsgDueDate] = useState("");
 
   // What-if (non-permanent)
   const [whatIfCategoryId, setWhatIfCategoryId] = useState("");
@@ -170,18 +212,24 @@ export default function CoursePage() {
     return copy.sort((a, b) => Number(b.weight) - Number(a.weight));
   }, [cats]);
 
-  // Assignments ordering:
-  // prefer position if present; otherwise keep “recent” by created_at not available here, so just stable
+  // Assignments ordering (for grade math: keep position ordering if available)
   const orderedAssignments = useMemo(() => {
     const hasPositions = as.some((x) => x.position != null);
     const copy = [...as];
-    if (hasPositions)
+    if (hasPositions) {
       return copy.sort(
         (a, b) => Number(a.position ?? 0) - Number(b.position ?? 0),
       );
-    // fall back to “most recent first” approximation using id string stable order is not great;
-    // if you want true recency keep your DB .order("created_at", desc) and store it
+    }
     return copy;
+  }, [as]);
+
+  const assignmentsByDueDate = useMemo(() => {
+    return [...as].sort((a, b) => {
+      const aTime = dateFromInput(a.due_date)?.getTime() ?? Infinity;
+      const bTime = dateFromInput(b.due_date)?.getTime() ?? Infinity;
+      return aTime - bTime;
+    });
   }, [as]);
 
   // Apply what-if virtually (does NOT write to DB)
@@ -242,11 +290,21 @@ export default function CoursePage() {
   }, [orderedCats, effectiveAssignmentsForGrade]);
 
   // Overall unweighted (points earned / possible) using *real* assignments only (not what-if)
-  const overallUnweighted = useMemo(() => {
-    return sumPoints(orderedAssignments);
+  const gradedAssignments = useMemo(() => {
+    return orderedAssignments.filter((assignment) => {
+      return (
+        assignment.status === "graded" &&
+        assignment.points_earned != null &&
+        assignment.points_possible != null
+      );
+    });
   }, [orderedAssignments]);
 
-  // Category unweighted scores (per category) using real assignments only
+  const overallUnweighted = useMemo(() => {
+    return sumPoints(gradedAssignments);
+  }, [gradedAssignments]);
+
+  // Category unweighted scores (per category) using graded assignments only
   const categoryUnweighted = useMemo(() => {
     const map: Record<
       string,
@@ -254,12 +312,12 @@ export default function CoursePage() {
     > = {};
     for (const c of orderedCats) {
       const pts = sumPoints(
-        orderedAssignments.filter((a) => a.category_id === c.id),
+        gradedAssignments.filter((a) => a.category_id === c.id),
       );
       map[c.id] = pts;
     }
     return map;
-  }, [orderedCats, orderedAssignments]);
+  }, [orderedCats, gradedAssignments]);
 
   const categoryWeighted = useMemo(() => {
     const map: Record<string, number | null> = {};
@@ -279,7 +337,21 @@ export default function CoursePage() {
     setCatName("");
     setCatWeight("0");
     setCatDrop("0");
+    setEditingCategoryId(null);
     setCatModalOpen(true);
+  }
+
+  function openEditCategory(category: Category) {
+    setCatName(category.name);
+    setCatWeight(String(category.weight));
+    setCatDrop(String(category.drop_lowest));
+    setEditingCategoryId(category.id);
+    setCatModalOpen(true);
+  }
+
+  function closeCategoryModal() {
+    setCatModalOpen(false);
+    setEditingCategoryId(null);
   }
 
   function openAddAssignment() {
@@ -293,6 +365,7 @@ export default function CoursePage() {
     setAsgEarned("");
     setAsgPossible("");
     setAsgStatus("planned");
+    setAsgDueDate("");
     setAsgModalOpen(true);
   }
 
@@ -303,6 +376,7 @@ export default function CoursePage() {
     setAsgEarned(a.points_earned == null ? "" : String(a.points_earned));
     setAsgPossible(a.points_possible == null ? "" : String(a.points_possible));
     setAsgStatus(a.status ?? "planned");
+    setAsgDueDate(normalizeDateInput(a.due_date));
     setAsgModalOpen(true);
   }
 
@@ -325,6 +399,21 @@ export default function CoursePage() {
 
     // position defaults to end if column exists
     const nextPos = orderedCats.length;
+
+    if (editingCategoryId) {
+      const { error } = await supabase
+        .from("categories")
+        .update({ name, weight, drop_lowest })
+        .eq("id", editingCategoryId);
+
+      if (error) alert(error.message);
+      else {
+        setCatModalOpen(false);
+        setEditingCategoryId(null);
+        refresh();
+      }
+      return;
+    }
 
     const { error } = await supabase.from("categories").insert({
       user_id: session.user.id,
@@ -357,10 +446,7 @@ export default function CoursePage() {
     const earned = safeNum(asgEarned);
     const possible = safeNum(asgPossible);
 
-    // status logic
-    const status: Assignment["status"] =
-      earned == null || possible == null ? "planned" : asgStatus || "graded";
-
+    const dueDateValue = normalizeDateInput(asgDueDate.trim());
     const payload = {
       user_id: session.user.id,
       course_id: courseId,
@@ -368,7 +454,8 @@ export default function CoursePage() {
       title,
       points_earned: earned,
       points_possible: possible,
-      status,
+      status: asgStatus,
+      due_date: dueDateValue || null,
     };
 
     // If editing, update by id
@@ -456,19 +543,6 @@ export default function CoursePage() {
     }
   }
 
-  // Drag/persist assignment ordering
-  async function persistAssignmentOrder(next: Assignment[]) {
-    const updates = next
-      .filter((a) => a.id !== "__what_if__")
-      .map((a, idx) => ({ id: a.id, position: idx }));
-    const { error } = await supabase
-      .from("assignments")
-      .upsert(updates, { onConflict: "id" });
-    if (error) {
-      console.warn("Assignment order persist failed:", error.message);
-    }
-  }
-
   return (
     <main style={{ maxWidth: 900, margin: "40px auto", padding: 16 }}>
       <Link href="/" style={{ textDecoration: "none" }}>
@@ -478,51 +552,80 @@ export default function CoursePage() {
       <h1 style={{ marginTop: 10 }}>{course?.name ?? "Course"}</h1>
       <div style={{ opacity: 0.7 }}>{course?.term ?? "—"}</div>
 
-      <div style={{ marginTop: 14, display: "flex", gap: 24, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 28, fontWeight: 800 }}>
-          {formatPct(grade.overallPct)}
-          <span style={{ fontSize: 14, opacity: 0.7, marginLeft: 10 }}>
-            weighted
-          </span>
-        </div>
-        <div style={{ fontSize: 28, fontWeight: 800 }}>
-          {formatPct(overallUnweighted.pct)}
-          <span style={{ fontSize: 14, opacity: 0.7, marginLeft: 10 }}>
-            unweighted ({overallUnweighted.earned}/{overallUnweighted.possible})
-          </span>
-        </div>
+      <div style={{ marginTop: 14, display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setActiveTab("grades")}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 999,
+            border: "1px solid var(--border)",
+            background: activeTab === "grades" ? "var(--table-head-bg)" : "transparent",
+            fontWeight: activeTab === "grades" ? 700 : 500,
+          }}
+        >
+          Grades
+        </button>
+        <button
+          onClick={() => setActiveTab("assignments")}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 999,
+            border: "1px solid var(--border)",
+            background:
+              activeTab === "assignments" ? "var(--table-head-bg)" : "transparent",
+            fontWeight: activeTab === "assignments" ? 700 : 500,
+          }}
+        >
+          Assignments
+        </button>
       </div>
 
-      <div
-        style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}
-      >
-        <button onClick={openAddCategory} style={{ padding: 10 }}>
-          + Category
-        </button>
-        <button onClick={openAddAssignment} style={{ padding: 10 }}>
-          + Assignment
-        </button>
-        <button onClick={() => setWhatIfOpen(true)} style={{ padding: 10 }}>
-          What-if
-        </button>
-        {whatIfOpen ? (
-          <button
-            onClick={() => {
-              setWhatIfOpen(false);
-              setWhatIfCategoryId("");
-              setWhatIfEarned("");
-              setWhatIfPossible("");
-            }}
-            style={{ padding: 10 }}
+      {activeTab === "grades" ? (
+        <>
+          <div style={{ marginTop: 14, display: "flex", gap: 24, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>
+              {formatPct(grade.overallPct)}
+              <span style={{ fontSize: 14, opacity: 0.7, marginLeft: 10 }}>
+                weighted
+              </span>
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>
+              {formatPct(overallUnweighted.pct)}
+              <span style={{ fontSize: 14, opacity: 0.7, marginLeft: 10 }}>
+                unweighted ({overallUnweighted.earned}/{overallUnweighted.possible})
+              </span>
+            </div>
+          </div>
+
+          <div
+            style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}
           >
-            Clear what-if
-          </button>
-        ) : null}
-      </div>
+            <button onClick={openAddCategory} style={{ padding: 10 }}>
+              + Category
+            </button>
+            <button onClick={openAddAssignment} style={{ padding: 10 }}>
+              + Assignment
+            </button>
+            <button onClick={() => setWhatIfOpen(true)} style={{ padding: 10 }}>
+              What-if
+            </button>
+            {whatIfOpen ? (
+              <button
+                onClick={() => {
+                  setWhatIfOpen(false);
+                  setWhatIfCategoryId("");
+                  setWhatIfEarned("");
+                  setWhatIfPossible("");
+                }}
+                style={{ padding: 10 }}
+              >
+                Clear what-if
+              </button>
+            ) : null}
+          </div>
 
-      <h2 style={{ marginTop: 26 }}>Categories</h2>
+          <h2 style={{ marginTop: 26 }}>Categories</h2>
 
-      {/* Drag-and-drop categories while keeping your same card grid look */}
       <DragList
         items={orderedCats}
         setItems={setCats}
@@ -585,123 +688,146 @@ export default function CoursePage() {
                 <strong>{formatPct(categoryWeighted[c.id] ?? null)}</strong>
               </div>
             </div>
+
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                onClick={() => openEditCategory(c)}
+                style={{ padding: "6px 10px" }}
+              >
+                Edit
+              </button>
+            </div>
           </div>
         )}
       />
 
-      {orderedCats.length === 0 && (
-        <div style={{ opacity: 0.7 }}>No categories yet.</div>
+
+          {orderedCats.length === 0 && (
+            <div style={{ opacity: 0.7 }}>No categories yet.</div>
+          )}
+        </>
+      ) : (
+        <>
+          <div
+            style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}
+          >
+            <button onClick={openAddAssignment} style={{ padding: 10 }}>
+              + Assignment
+            </button>
+          </div>
+
+          <div
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 12,
+              marginTop: 16,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
+                gap: 0,
+                fontWeight: 700,
+                padding: 10,
+                background: "var(--table-head-bg)",
+                color: "var(--table-head-fg)",
+              }}
+            >
+              <div>Assignment</div>
+              <div>Due</div>
+              <div>Grade</div>
+              <div>Status</div>
+              <div style={{ textAlign: "right" }}>Actions</div>
+            </div>
+
+            {assignmentsByDueDate.map((assignment) => {
+              const dueToday = isDueToday(assignment.due_date);
+              return (
+                <div
+                  key={assignment.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
+                    padding: 10,
+                    borderTop: "1px solid #eee",
+                    alignItems: "center",
+                    background: dueToday
+                      ? "rgba(255, 235, 59, 0.18)"
+                      : "transparent",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{assignment.title}</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                      {orderedCats.find((c) => c.id === assignment.category_id)
+                        ?.name ?? "—"}
+                    </div>
+                    {dueToday ? (
+                      <div
+                        style={{ fontSize: 12, fontWeight: 600, color: "#92400e" }}
+                      >
+                        Due today
+                      </div>
+                    ) : null}
+                  </div>
+                  <div>{formatDueDate(assignment.due_date)}</div>
+                  <div>
+                    {assignment.points_earned == null ||
+                    assignment.points_possible == null
+                      ? "—"
+                      : `${assignment.points_earned}/${assignment.points_possible}`}
+                  </div>
+                  <div>
+                    <span style={statusBadgeStyle(assignment.status)}>
+                      {assignment.status}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditAssignment(assignment);
+                      }}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteAssignment(assignment.id);
+                      }}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {assignmentsByDueDate.length === 0 ? (
+              <div style={{ padding: 10, opacity: 0.7 }}>No assignments yet.</div>
+            ) : null}
+          </div>
+        </>
       )}
-
-      <h2 style={{ marginTop: 26 }}>Recent assignments</h2>
-      <div
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "32px 2fr 1fr 1fr 1fr 1fr",
-            gap: 0,
-            fontWeight: 700,
-            padding: 10,
-            background: "var(--table-head-bg)",
-            color: "var(--table-head-fg)",
-          }}
-        >
-          <div></div>
-          <div>Title</div>
-          <div>Category</div>
-          <div>Score</div>
-          <div>Status</div>
-          <div style={{ textAlign: "right" }}>Actions</div>
-        </div>
-
-        <DragList
-          items={orderedAssignments}
-          setItems={setAs}
-          onPersist={persistAssignmentOrder}
-          render={(a: Assignment, { dragHandleProps }) => {
-            const catName =
-              orderedCats.find((c) => c.id === a.category_id)?.name ?? "—";
-            const score =
-              a.points_earned == null || a.points_possible == null
-                ? "—"
-                : `${a.points_earned}/${a.points_possible}`;
-
-            return (
-              <div
-                key={a.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "32px 2fr 1fr 1fr 1fr 1fr",
-                  padding: 10,
-                  borderTop: "1px solid #eee",
-                  alignItems: "center",
-                }}
-              >
-                <div
-                  {...dragHandleProps}
-                  title="Drag to reorder"
-                  style={{
-                    cursor: "grab",
-                    opacity: 0.6,
-                    userSelect: "none",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    padding: "2px 6px",
-                    fontSize: 12,
-                    textAlign: "center",
-                  }}
-                >
-                  ☰
-                </div>
-                <div>{a.title}</div>
-                <div>{catName}</div>
-                <div>{score}</div>
-                <div>
-                  <span style={statusBadgeStyle(a.status)}>{a.status}</span>
-                </div>
-                <div
-                  style={{
-                    textAlign: "right",
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                  }}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditAssignment(a);
-                    }}
-                    style={{ padding: "6px 10px" }}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteAssignment(a.id);
-                    }}
-                    style={{ padding: "6px 10px" }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            );
-          }}
-        />
-
-        {orderedAssignments.length === 0 && (
-          <div style={{ padding: 10, opacity: 0.7 }}>No assignments yet.</div>
-        )}
-      </div>
 
       <div style={{ marginTop: 24 }}>
         <button
@@ -722,8 +848,8 @@ export default function CoursePage() {
       {/* Category modal */}
       <Modal
         open={catModalOpen}
-        title="Add category"
-        onClose={() => setCatModalOpen(false)}
+        title={editingCategoryId ? "Edit category" : "Add category"}
+        onClose={closeCategoryModal}
       >
         <div className="row">
           <div style={{ flex: 1 }}>
@@ -754,8 +880,10 @@ export default function CoursePage() {
           </div>
         </div>
         <div className="actions">
-          <button onClick={() => setCatModalOpen(false)}>Cancel</button>
-          <button onClick={saveCategory}>Save</button>
+          <button onClick={closeCategoryModal}>Cancel</button>
+          <button onClick={saveCategory}>
+            {editingCategoryId ? "Save changes" : "Save"}
+          </button>
         </div>
       </Modal>
 
@@ -821,6 +949,17 @@ export default function CoursePage() {
               value={asgPossible}
               onChange={(e) => setAsgPossible(e.target.value)}
               inputMode="decimal"
+            />
+          </div>
+        </div>
+
+        <div className="row">
+          <div style={{ flex: 1 }}>
+            <label>Due date</label>
+            <input
+              type="date"
+              value={asgDueDate}
+              onChange={(e) => setAsgDueDate(e.target.value)}
             />
           </div>
         </div>

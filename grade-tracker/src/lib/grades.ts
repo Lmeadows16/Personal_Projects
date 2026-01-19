@@ -15,6 +15,7 @@ export type Assignment = {
 };
 
 function pct(a: Assignment): number | null {
+  if (a.status !== "graded") return null;
   if (a.points_earned == null || a.points_possible == null) return null;
   if (a.points_possible <= 0) return null;
   return a.points_earned / a.points_possible;
