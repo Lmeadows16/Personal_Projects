@@ -13,8 +13,8 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ onToggle }: SidebarProps) {
-
   const [courses, setCourses] = useState<Course[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
   const [terms, setTerms] = useState<Term[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
 
@@ -28,6 +28,14 @@ export default function Sidebar({ onToggle }: SidebarProps) {
     syncTerm();
     window.addEventListener("storage", syncTerm);
     return () => window.removeEventListener("storage", syncTerm);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 900px)");
+    const syncMobile = () => setIsMobile(mediaQuery.matches);
+    syncMobile();
+    mediaQuery.addEventListener("change", syncMobile);
+    return () => mediaQuery.removeEventListener("change", syncMobile);
   }, []);
 
   useEffect(() => {
@@ -295,7 +303,7 @@ export default function Sidebar({ onToggle }: SidebarProps) {
           Logout
         </button>
 
-        {onToggle ? (
+        {onToggle && isMobile ? (
           <button
             onClick={onToggle}
             className="sidebar-toggle"

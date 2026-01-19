@@ -16,6 +16,7 @@ export default function AssignmentsSummary() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const syncTerm = () =>
@@ -28,6 +29,14 @@ export default function AssignmentsSummary() {
       window.removeEventListener("storage", syncTerm);
       window.removeEventListener("term-change", syncTerm);
     };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const syncMobile = () => setIsMobile(mediaQuery.matches);
+    syncMobile();
+    mediaQuery.addEventListener("change", syncMobile);
+    return () => mediaQuery.removeEventListener("change", syncMobile);
   }, []);
 
   async function loadData() {
@@ -77,9 +86,26 @@ export default function AssignmentsSummary() {
     fontSize: 14,
   };
 
+  const cardTitleSize = isMobile ? 16 : 14;
+  const cardMetaSize = isMobile ? 14 : 13;
+  const cardStatsSize = isMobile ? 14 : 13;
+
   return (
-    <main style={{ maxWidth: 1000, margin: "40px auto", padding: 16 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+    <main
+      style={{
+        maxWidth: 1000,
+        margin: isMobile ? "20px auto" : "40px auto",
+        padding: isMobile ? 12 : 16,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 16,
+          flexWrap: isMobile ? "wrap" : "nowrap",
+        }}
+      >
         <span
           style={{
             ...tabBase,
@@ -95,8 +121,10 @@ export default function AssignmentsSummary() {
         </Link>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0 }}>Assignments summary</h1>
+      <div style={{ marginBottom: isMobile ? 12 : 16 }}>
+        <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 28 }}>
+          Assignments summary
+        </h1>
         <div style={{ opacity: 0.7, marginTop: 6 }}>
           Showing: <strong>{selectedTerm}</strong>
         </div>
@@ -112,8 +140,10 @@ export default function AssignmentsSummary() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 12,
+            gridTemplateColumns: isMobile
+              ? "repeat(auto-fit, minmax(160px, 1fr))"
+              : "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: isMobile ? 10 : 12,
           }}
         >
           {visibleCourses.map((course) => {
@@ -128,21 +158,31 @@ export default function AssignmentsSummary() {
                 style={{
                   border: "1px solid var(--border)",
                   borderRadius: 12,
-                  padding: 16,
+                  padding: isMobile ? 14 : 16,
                   display: "block",
+                  minHeight: isMobile ? 120 : undefined,
                 }}
               >
-                <div style={{ fontWeight: 800 }}>{course.name}</div>
-                <div style={{ opacity: 0.7, marginTop: 2 }}>
+                <div style={{ fontWeight: 800, fontSize: cardTitleSize }}>
+                  {course.name}
+                </div>
+                <div
+                  style={{
+                    opacity: 0.7,
+                    marginTop: 2,
+                    fontSize: cardMetaSize,
+                  }}
+                >
                   {course.term ?? "—"}
                 </div>
                 <div
                   style={{
                     marginTop: 10,
-                    fontSize: 14,
+                    fontSize: cardStatsSize,
                     opacity: 0.85,
                     display: "grid",
-                    gap: 4,
+                    gap: 6,
+                    lineHeight: isMobile ? 1.3 : 1.2,
                   }}
                 >
                   <div>

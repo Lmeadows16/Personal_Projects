@@ -84,6 +84,7 @@ export default function AssignmentsBreakdown() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(
     null,
@@ -106,6 +107,14 @@ export default function AssignmentsBreakdown() {
       window.removeEventListener("storage", syncTerm);
       window.removeEventListener("term-change", syncTerm);
     };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const syncMobile = () => setIsMobile(mediaQuery.matches);
+    syncMobile();
+    mediaQuery.addEventListener("change", syncMobile);
+    return () => mediaQuery.removeEventListener("change", syncMobile);
   }, []);
 
   async function loadData() {
@@ -240,8 +249,21 @@ export default function AssignmentsBreakdown() {
   };
 
   return (
-    <main style={{ maxWidth: 1000, margin: "40px auto", padding: 16 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+    <main
+      style={{
+        maxWidth: 1000,
+        margin: isMobile ? "20px auto" : "40px auto",
+        padding: isMobile ? 12 : 16,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 16,
+          flexWrap: isMobile ? "wrap" : "nowrap",
+        }}
+      >
         <Link href="/assignments" style={tabBase}>
           Summary
         </Link>
@@ -268,7 +290,9 @@ export default function AssignmentsBreakdown() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0 }}>Assignments breakdown</h1>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 28 }}>
+            Assignments breakdown
+          </h1>
           <div style={{ opacity: 0.7, marginTop: 6 }}>
             Showing: <strong>{selectedTerm}</strong>
           </div>
@@ -280,10 +304,11 @@ export default function AssignmentsBreakdown() {
           style={{
             borderRadius: 999,
             border: "1px solid #111",
-            padding: "8px 16px",
+            padding: "10px 16px",
             background: selectedTerm === "All" ? "#eee" : "#111",
             color: selectedTerm === "All" ? "#666" : "#fff",
             cursor: selectedTerm === "All" ? "not-allowed" : "pointer",
+            width: isMobile ? "100%" : "auto",
           }}
         >
           Add assignment
@@ -319,12 +344,12 @@ export default function AssignmentsBreakdown() {
               height: "100%",
               background: "var(--modal-bg)",
               color: "var(--modal-fg)",
-              padding: 24,
+              padding: isMobile ? 18 : 24,
               boxShadow: "-12px 0 30px rgba(15, 23, 42, 0.12)",
               display: "flex",
               flexDirection: "column",
               gap: 16,
-              borderLeft: "1px solid var(--border)",
+              borderLeft: isMobile ? "none" : "1px solid var(--border)",
             }}
             onClick={(event) => event.stopPropagation()}
           >
@@ -408,7 +433,7 @@ export default function AssignmentsBreakdown() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
                   gap: 12,
                 }}
               >
@@ -521,7 +546,7 @@ export default function AssignmentsBreakdown() {
             </div>
             <div
               style={{
-                display: "grid",
+                display: isMobile ? "none" : "grid",
                 gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
                 gap: 0,
                 fontWeight: 700,
@@ -542,19 +567,43 @@ export default function AssignmentsBreakdown() {
               return (
                 <div
                   key={assignment.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
-                    padding: 10,
-                    borderTop: "1px solid #eee",
-                    alignItems: "center",
-                    background: dueToday
-                      ? "rgba(255, 235, 59, 0.18)"
-                      : "transparent",
-                  }}
+                  style={
+                    isMobile
+                      ? {
+                          display: "grid",
+                          gap: 8,
+                          padding: 12,
+                          borderTop: "1px solid #eee",
+                          background: dueToday
+                            ? "rgba(255, 235, 59, 0.18)"
+                            : "transparent",
+                        }
+                      : {
+                          display: "grid",
+                          gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
+                          padding: 10,
+                          borderTop: "1px solid #eee",
+                          alignItems: "center",
+                          background: dueToday
+                            ? "rgba(255, 235, 59, 0.18)"
+                            : "transparent",
+                        }
+                  }
                 >
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{assignment.title}</div>
+                  <div
+                    style={
+                      isMobile
+                        ? {
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
+                          }
+                        : undefined
+                    }
+                  >
+                    <div style={{ fontWeight: 600, fontSize: isMobile ? 16 : 14 }}>
+                      {assignment.title}
+                    </div>
                     {dueToday ? (
                       <div
                         style={{
@@ -567,8 +616,28 @@ export default function AssignmentsBreakdown() {
                       </div>
                     ) : null}
                   </div>
-                  <div style={{ paddingRight: 12 }}>
-                    {course ? (
+                  <div
+                    style={
+                      isMobile
+                        ? { fontSize: 13, opacity: 0.7 }
+                        : { paddingRight: 12 }
+                    }
+                  >
+                    {isMobile ? "Course" : null}
+                    {isMobile ? (
+                      <div style={{ marginTop: 4 }}>
+                        {course ? (
+                          <Link
+                            href={`/course/${course.id}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            {course.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    ) : course ? (
                       <Link
                         href={`/course/${course.id}`}
                         style={{ textDecoration: "none" }}
@@ -579,10 +648,28 @@ export default function AssignmentsBreakdown() {
                       "—"
                     )}
                   </div>
-                  <div style={{ paddingLeft: 30 }}>
-                    {formatDueDate(assignment.due_date, assignment.due_time)}
+                  <div
+                    style={
+                      isMobile
+                        ? { fontSize: 13, opacity: 0.7 }
+                        : { paddingLeft: 30 }
+                    }
+                  >
+                    {isMobile ? "Due" : null}
+                    <div style={{ marginTop: isMobile ? 4 : 0 }}>
+                      {formatDueDate(assignment.due_date, assignment.due_time)}
+                    </div>
                   </div>
-                  <div>
+                  <div
+                    style={
+                      isMobile
+                        ? { display: "flex", alignItems: "center", gap: 8 }
+                        : undefined
+                    }
+                  >
+                    {isMobile ? (
+                      <span style={{ fontSize: 13, opacity: 0.7 }}>Status</span>
+                    ) : null}
                     <span style={statusBadgeStyle(assignment.status)}>
                       {assignment.status}
                     </span>
@@ -594,10 +681,11 @@ export default function AssignmentsBreakdown() {
                       style={{
                         borderRadius: 8,
                         border: "1px solid var(--border)",
-                        padding: "4px 10px",
+                        padding: isMobile ? "8px 12px" : "4px 10px",
                         background: "var(--sidebar-bg)",
                         color: "var(--sidebar-fg)",
                         cursor: "pointer",
+                        width: isMobile ? "100%" : "auto",
                       }}
                     >
                       Edit
@@ -633,7 +721,7 @@ export default function AssignmentsBreakdown() {
             </div>
             <div
               style={{
-                display: "grid",
+                display: isMobile ? "none" : "grid",
                 gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
                 gap: 0,
                 fontWeight: 700,
@@ -654,19 +742,43 @@ export default function AssignmentsBreakdown() {
               return (
                 <div
                   key={assignment.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
-                    padding: 10,
-                    borderTop: "1px solid #eee",
-                    alignItems: "center",
-                    background: dueToday
-                      ? "rgba(255, 235, 59, 0.18)"
-                      : "transparent",
-                  }}
+                  style={
+                    isMobile
+                      ? {
+                          display: "grid",
+                          gap: 8,
+                          padding: 12,
+                          borderTop: "1px solid #eee",
+                          background: dueToday
+                            ? "rgba(255, 235, 59, 0.18)"
+                            : "transparent",
+                        }
+                      : {
+                          display: "grid",
+                          gridTemplateColumns: "1.7fr 1.1fr 1.4fr 0.8fr 90px",
+                          padding: 10,
+                          borderTop: "1px solid #eee",
+                          alignItems: "center",
+                          background: dueToday
+                            ? "rgba(255, 235, 59, 0.18)"
+                            : "transparent",
+                        }
+                  }
                 >
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{assignment.title}</div>
+                  <div
+                    style={
+                      isMobile
+                        ? {
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
+                          }
+                        : undefined
+                    }
+                  >
+                    <div style={{ fontWeight: 600, fontSize: isMobile ? 16 : 14 }}>
+                      {assignment.title}
+                    </div>
                     {dueToday ? (
                       <div
                         style={{
@@ -679,8 +791,28 @@ export default function AssignmentsBreakdown() {
                       </div>
                     ) : null}
                   </div>
-                  <div style={{ paddingRight: 12 }}>
-                    {course ? (
+                  <div
+                    style={
+                      isMobile
+                        ? { fontSize: 13, opacity: 0.7 }
+                        : { paddingRight: 12 }
+                    }
+                  >
+                    {isMobile ? "Course" : null}
+                    {isMobile ? (
+                      <div style={{ marginTop: 4 }}>
+                        {course ? (
+                          <Link
+                            href={`/course/${course.id}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            {course.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    ) : course ? (
                       <Link
                         href={`/course/${course.id}`}
                         style={{ textDecoration: "none" }}
@@ -691,10 +823,28 @@ export default function AssignmentsBreakdown() {
                       "—"
                     )}
                   </div>
-                  <div style={{ paddingLeft: 30 }}>
-                    {formatDueDate(assignment.due_date, assignment.due_time)}
+                  <div
+                    style={
+                      isMobile
+                        ? { fontSize: 13, opacity: 0.7 }
+                        : { paddingLeft: 30 }
+                    }
+                  >
+                    {isMobile ? "Due" : null}
+                    <div style={{ marginTop: isMobile ? 4 : 0 }}>
+                      {formatDueDate(assignment.due_date, assignment.due_time)}
+                    </div>
                   </div>
-                  <div>
+                  <div
+                    style={
+                      isMobile
+                        ? { display: "flex", alignItems: "center", gap: 8 }
+                        : undefined
+                    }
+                  >
+                    {isMobile ? (
+                      <span style={{ fontSize: 13, opacity: 0.7 }}>Status</span>
+                    ) : null}
                     <span style={statusBadgeStyle(assignment.status)}>
                       {assignment.status}
                     </span>
@@ -706,10 +856,11 @@ export default function AssignmentsBreakdown() {
                       style={{
                         borderRadius: 8,
                         border: "1px solid var(--border)",
-                        padding: "4px 10px",
+                        padding: isMobile ? "8px 12px" : "4px 10px",
                         background: "var(--sidebar-bg)",
                         color: "var(--sidebar-fg)",
                         cursor: "pointer",
+                        width: isMobile ? "100%" : "auto",
                       }}
                     >
                       Edit
