@@ -3,12 +3,20 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 
 type Course = { id: string; name: string; term: string | null };
+
+type Category = {
+  id: string;
+  course_id: string;
+  name: string;
+};
 
 type Assignment = {
   id: string;
   course_id: string;
+  category_id: string;
   title: string;
   status: "planned" | "submitted" | "graded" | "missing";
   due_date: string | null;
@@ -142,16 +150,19 @@ function isUpcoming(dueDate: Date | null, today: Date) {
 
 export default function AssignmentsBreakdown() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("All");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(
     null,
   );
   const [formTitle, setFormTitle] = useState("");
   const [formCourseId, setFormCourseId] = useState("");
+  const [formCategoryId, setFormCategoryId] = useState("");
   const [formDueDate, setFormDueDate] = useState("");
   const [formDueTime, setFormDueTime] = useState("");
   const [formStatus, setFormStatus] = useState<Assignment["status"]>("planned");
@@ -178,22 +189,45 @@ export default function AssignmentsBreakdown() {
     return () => mediaQuery.removeEventListener("change", syncMobile);
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        supabase.auth.signOut();
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   async function loadData() {
     const courseRows = await supabase
       .from("courses")
       .select("id,name,term")
       .order("created_at", { ascending: false });
+    const categoryRows = await supabase
+      .from("categories")
+      .select("id,course_id,name")
+      .order("created_at", { ascending: true });
     const assignmentRows = await supabase
       .from("assignments")
-      .select("id,course_id,title,status,due_date,due_time");
+      .select("id,course_id,category_id,title,status,due_date,due_time");
 
     setCourses((courseRows.data ?? []) as Course[]);
+    setCategories((categoryRows.data ?? []) as Category[]);
     setAssignments((assignmentRows.data ?? []) as Assignment[]);
   }
 
   function resetForm() {
     setFormTitle("");
     setFormCourseId("");
+    setFormCategoryId("");
     setFormDueDate("");
     setFormDueTime("");
     setFormStatus("planned");
@@ -210,6 +244,7 @@ export default function AssignmentsBreakdown() {
     setEditingAssignment(assignment);
     setFormTitle(assignment.title);
     setFormCourseId(assignment.course_id);
+    setFormCategoryId(assignment.category_id);
     setFormDueDate(normalizeDateInput(assignment.due_date));
     setFormDueTime(normalizeTimeInput(assignment.due_time));
     setFormStatus(assignment.status === "missing" ? "planned" : assignment.status);
@@ -227,6 +262,14 @@ export default function AssignmentsBreakdown() {
       setFormError("Select a course.");
       return;
     }
+    if (!formCategoryId) {
+      setFormError("Select a category.");
+      return;
+    }
+    if (!session) {
+      setFormError("Session expired. Please sign in again.");
+      return;
+    }
 
     setIsSaving(true);
     setFormError(null);
@@ -234,6 +277,7 @@ export default function AssignmentsBreakdown() {
     const payload = {
       title: formTitle.trim(),
       course_id: formCourseId,
+      category_id: formCategoryId,
       status: formStatus,
       due_date: formDueDate ? `${formDueDate}T00:00:00` : null,
       due_time: formDueTime ? normalizeTimeInput(formDueTime) : null,
@@ -244,7 +288,9 @@ export default function AssignmentsBreakdown() {
           .from("assignments")
           .update(payload)
           .eq("id", editingAssignment.id)
-      : await supabase.from("assignments").insert(payload);
+      : await supabase
+          .from("assignments")
+          .insert({ ...payload, user_id: session.user.id });
 
     if (error) {
       setFormError(error.message);
@@ -267,6 +313,31 @@ export default function AssignmentsBreakdown() {
     if (selectedTerm === "All") return [];
     return courses.filter((course) => (course.term ?? "—") === selectedTerm);
   }, [courses, selectedTerm]);
+
+  const categoriesByCourse = useMemo(() => {
+    const map = new Map<string, Category[]>();
+    categories.forEach((category) => {
+      const existing = map.get(category.course_id) ?? [];
+      existing.push(category);
+      map.set(category.course_id, existing);
+    });
+    return map;
+  }, [categories]);
+
+  const visibleCategories = useMemo(() => {
+    if (!formCourseId) return [];
+    return categoriesByCourse.get(formCourseId) ?? [];
+  }, [categoriesByCourse, formCourseId]);
+
+  useEffect(() => {
+    if (!formCourseId) return;
+    if (editingAssignment) return;
+    if (visibleCategories.length === 0) {
+      setFormCategoryId("");
+      return;
+    }
+    setFormCategoryId(visibleCategories[0].id);
+  }, [editingAssignment, formCourseId, visibleCategories]);
 
   const rows = useMemo(() => {
     const visibleCourseIds = new Set(visibleCourses.map((course) => course.id));
@@ -501,7 +572,10 @@ export default function AssignmentsBreakdown() {
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Course</span>
                 <select
                   value={formCourseId}
-                  onChange={(event) => setFormCourseId(event.target.value)}
+                  onChange={(event) => {
+                    setFormCourseId(event.target.value);
+                    setFormCategoryId("");
+                  }}
                   style={{
                     padding: "8px 10px",
                     borderRadius: 8,
@@ -513,6 +587,29 @@ export default function AssignmentsBreakdown() {
                   {visibleCourses.map((course) => (
                     <option key={course.id} value={course.id}>
                       {course.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label
+                style={{ display: "flex", flexDirection: "column", gap: 6 }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Category</span>
+                <select
+                  value={formCategoryId}
+                  onChange={(event) => setFormCategoryId(event.target.value)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                  }}
+                  disabled={selectedTerm === "All" || !formCourseId}
+                >
+                  <option value="">Select a category</option>
+                  {visibleCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
                 </select>
